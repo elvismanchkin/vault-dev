@@ -1,93 +1,84 @@
-# HashiCorp Vault Local Development Environment
+# HashiCorp Vault with AppRole - Local Development
 
-This Docker Compose setup creates a local development environment for HashiCorp Vault with KV1 secret engine, demo secrets, and AppRole authentication method.
+This setup provides a local HashiCorp Vault instance with:
+- KV version 1 secret engine enabled by default
+- A demo secret automatically created
+- AppRole authentication method configured with access to the demo secret
+- Role ID and Secret ID automatically generated and displayed
 
-## Prerequisites
+## Files
 
-- Docker and Docker Compose installed
-- `jq` installed (used in the initialization script)
-
-## Directory Structure
-
-```
-.
-├── docker-compose.yml
-├── .env
-└── vault/
-    ├── config/
-    ├── data/
-    ├── logs/
-    ├── credentials/
-    └── scripts/
-        ├── startup.sh
-        └── initialize.sh
-```
+- `docker-compose.yml` - Docker Compose configuration for Vault
+- `setup.sh` - Script that configures Vault with AppRole and secrets
 
 ## Setup Instructions
 
-1. Create the directory structure:
-
+1. Save both files to the same directory
+2. Make the setup script executable:
 ```bash
-mkdir -p vault/config vault/data vault/logs vault/credentials vault/scripts
+chmod +x setup.sh
+```
+3. Start the environment:
+```bash
+docker-compose up
 ```
 
-2. Copy the provided scripts to their respective locations:
-   - `startup.sh` → `vault/scripts/startup.sh`
-   - `initialize.sh` → `vault/scripts/initialize.sh`
+The setup process will:
+1. Start a Vault server in dev mode with KV1 enabled
+2. Create a demo secret at `secret/demo`
+3. Enable AppRole authentication
+4. Configure a policy allowing read access to the demo secret
+5. Create an AppRole with the policy
+6. Output the Role ID and Secret ID
+7. Test authentication using the credentials
 
-3. Make the scripts executable:
+## Using AppRole Authentication
 
-```bash
-chmod +x vault/scripts/startup.sh vault/scripts/initialize.sh
-```
-
-4. Start the environment:
-
-```bash
-docker-compose up -d
-```
-
-5. View AppRole credentials:
+Once the setup is complete, you can authenticate using the displayed Role ID and Secret ID:
 
 ```bash
-cat vault/credentials/approle_creds.txt
+# With the Vault CLI
+export VAULT_ADDR=http://localhost:8200
+vault write auth/approle/login \
+  role_id=YOUR_ROLE_ID \
+  secret_id=YOUR_SECRET_ID
+
+# Using curl
+curl -X POST \
+  -d '{"role_id":"YOUR_ROLE_ID","secret_id":"YOUR_SECRET_ID"}' \
+  http://localhost:8200/v1/auth/approle/login
 ```
 
-## Features
+## Accessing the Demo Secret
 
-- **KV1 Secret Engine**: Uses Vault's KV version 1 secret engine by default
-- **Demo Secret**: Creates a demo secret at `secret/demo` with username, password, and environment
-- **AppRole Authentication**: Sets up AppRole auth method with appropriate policies
-- **Credentials**: Automatically generates and outputs Role ID and Secret ID
-
-## Accessing Vault
-
-- **UI**: http://localhost:8200 (token: `root-token`)
-- **CLI**: Using the Vault CLI with `VAULT_ADDR=http://localhost:8200` and `VAULT_TOKEN=root-token`
-
-## Authenticating with AppRole
+After authentication, you can access the demo secret:
 
 ```bash
-# Get the Role ID and Secret ID
-ROLE_ID=$(cat vault/credentials/approle_creds.txt | grep "Role ID" | cut -d ' ' -f 3)
-SECRET_ID=$(cat vault/credentials/approle_creds.txt | grep "Secret ID" | cut -d ' ' -f 3)
+# With the Vault CLI
+VAULT_TOKEN=YOUR_TOKEN vault kv get secret/demo
 
-# Login with AppRole
-vault write auth/approle/login role_id=$ROLE_ID secret_id=$SECRET_ID
-
-# Using the token to access the demo secret
-VAULT_TOKEN=<obtained-token> vault kv get secret/demo
+# Using curl
+curl -H "X-Vault-Token: YOUR_TOKEN" \
+  http://localhost:8200/v1/secret/demo
 ```
 
-## Stopping the Environment
+## Web UI Access
 
+You can access the Vault UI at http://localhost:8200
+
+Login with:
+- Method: Token
+- Token: root-token
+
+## Stopping and Cleaning Up
+
+To stop the containers:
 ```bash
 docker-compose down
 ```
 
-To completely reset the environment including volumes:
-
+To completely reset the environment:
 ```bash
-docker-compose down -v
-rm -rf vault/data/* vault/logs/* vault/config/* vault/credentials/*
+docker-compose down
+rm -rf data/
 ```
